@@ -9,7 +9,7 @@ import Drugs from './pages/Drugs';
 import Sales from './pages/Sales';
 import ProtectedRoute from './components/ProtectedRoute';
 import './index.css';
-
+import App from './app';
 function App(){
   return (
     <AuthProvider>
