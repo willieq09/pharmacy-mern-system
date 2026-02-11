@@ -1,9 +1,8 @@
-module.exports = function(allowedRoles = []) {
+module.exports = (...allowedRoles) => {
   return (req, res, next) => {
-    if (!req.user) return res.status(401).json({ message: 'Not authenticated' });
-    if (!Array.isArray(allowedRoles) || allowedRoles.length === 0) return next();
-    const role = typeof req.user.role === 'string' ? req.user.role : '';
-    if (!allowedRoles.includes(role)) return res.status(403).json({ message: 'Forbidden' });
+    if (!req.user || !allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
     next();
   };
 };

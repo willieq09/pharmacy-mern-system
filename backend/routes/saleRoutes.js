@@ -1,41 +1,82 @@
-const express = require('express');
-const Sale = require('../models/Sale');
-const Drug = require('../models/Drug');
-const auth = require('../middleware/auth');
-const roles = require('../middleware/roles');
+const express = require("express");
 const router = express.Router();
+const mongoose = require("mongoose");
+const Sale = require("../models/Sale");
+const Drug = require("../models/Drug");
+const auth = require("../middleware/auth");
 
-router.post('/', auth, roles(['admin','pharmacist']), async (req, res) => {
-  const { items, customer } = req.body;
-  if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'Items required' });
+/* ----------------------------------------
+   POST /api/sales
+   Create a new sale
+----------------------------------------- */
+router.post("/", auth, async (req, res) => {
   try {
-    let total = 0;
-    const processed = [];
-    for (const it of items) {
-      if (!it || !it.drug || typeof it.qty !== 'number' || it.qty <= 0) return res.status(400).json({ message: 'Invalid item' });
-      const drug = await Drug.findById(it.drug);
-      if (!drug) return res.status(404).json({ message: 'Drug not found' });
-      if (drug.stock < it.qty) return res.status(400).json({ message: `Insufficient stock for ${drug.name}` });
-      drug.stock -= it.qty;
-      await drug.save();
-      const price = drug.price;
-      total += price * it.qty;
-      processed.push({ drug: drug._id, qty: it.qty, price });
+    console.log("SALE BODY RECEIVED:", req.body);
+    console.log("USER:", req.user?._id);
+
+    const { drug, quantity, totalPrice } = req.body;
+
+    // ✅ Strong validation
+    if (!drug || !mongoose.Types.ObjectId.isValid(drug)) {
+      return res.status(400).json({ message: "Invalid item" });
     }
-    const sale = new Sale({ items: processed, total, customer, soldBy: req.user._id });
-    await sale.save();
-    return res.status(201).json(sale);
+
+    if (!quantity || quantity <= 0) {
+      return res.status(400).json({ message: "Invalid quantity" });
+    }
+
+    if (!totalPrice || totalPrice <= 0) {
+      return res.status(400).json({ message: "Invalid total price" });
+    }
+
+    // ✅ Check drug exists
+    const foundDrug = await Drug.findById(drug);
+    if (!foundDrug) {
+      return res.status(400).json({ message: "Drug not found" });
+    }
+
+    // ✅ Check stock
+    if (foundDrug.stock < quantity) {
+      return res.status(400).json({ message: "Insufficient stock" });
+    }
+
+    // ✅ Reduce stock
+    foundDrug.stock -= quantity;
+    await foundDrug.save();
+
+    // ✅ Create sale
+    const sale = await Sale.create({
+      drug,
+      quantity,
+      totalPrice,
+      soldBy: req.user._id
+    });
+
+    const populatedSale = await Sale.findById(sale._id)
+      .populate("drug", "name price")
+      .populate("soldBy", "username");
+
+    return res.status(201).json(populatedSale);
   } catch (err) {
-    return res.status(500).json({ message: 'Server error' });
+    console.error("SALE ERROR:", err);
+    return res.status(500).json({ message: "Server error" });
   }
 });
 
-router.get('/', auth, roles(['admin','pharmacist']), async (req, res) => {
+/* ----------------------------------------
+   GET /api/sales
+----------------------------------------- */
+router.get("/", auth, async (req, res) => {
   try {
-    const sales = await Sale.find().populate('items.drug').populate('customer').populate('soldBy');
-    return res.json(sales);
+    const sales = await Sale.find()
+      .populate("drug", "name price")
+      .populate("soldBy", "username")
+      .sort({ createdAt: -1 });
+
+    res.json(sales);
   } catch (err) {
-    return res.status(500).json({ message: 'Server error' });
+    console.error("FETCH SALES ERROR:", err);
+    res.status(500).json({ message: "Failed to fetch sales" });
   }
 });
 
