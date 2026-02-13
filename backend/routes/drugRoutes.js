@@ -1,92 +1,104 @@
-// // const express = require("express");
-// // const Drug = require("../models/Drug");
-// // const auth = require("../middleware/auth");
-
-// // const router = express.Router();
-
-// // // GET ALL DRUGS
-// // router.get("/", auth, async (req, res) => {
-// //   try {
-// //     const drugs = await Drug.find().sort({ name: 1 });
-// //     res.json(drugs);
-// //   } catch (error) {
-// //     res.status(500).json({ message: "Failed to fetch drugs" });
-// //   }
-// // });
-
-// //  module.exports = router;
-// // // import express from "express";
-// // // import Drug from "../models/Drug.js";
-
-// // // const router = express.Router();
-
-// // // // GET ALL DRUGS (PUBLIC)
-// // // router.get("/", async (req, res) => {
-// // //   try {
-// // //     const drugs = await Drug.find().sort({ name: 1 });
-// // //     res.json(drugs);
-// // //   } catch (error) {
-// // //     res.status(500).json({ message: "Failed to fetch drugs" });
-// // //   }
-// // // });
-
-// // // export default router;
-// const express = require("express");
-// const Drug = require("../models/Drug");
-// // const auth = require("../middleware/auth"); // temporarily disabled
-
-// const router = express.Router();
-
-// // GET ALL DRUGS (TEMPORARILY WITHOUT AUTH)
-// router.get("/", async (req, res) => {
-//   try {
-//     const drugs = await Drug.find().sort({ name: 1 });
-//     res.json(drugs);
-//   } catch (error) {
-//     res.status(500).json({ message: "Failed to fetch drugs" });
-//   }
-// });
-
-// module.exports = router;
 const express = require("express");
 const router = express.Router();
+const mongoose = require("mongoose");
 const Drug = require("../models/Drug");
 const auth = require("../middleware/auth");
 
-/* GET all drugs */
+/* -------------------------------
+   GET /api/drugs
+   Fetch all drugs
+--------------------------------- */
 router.get("/", auth, async (req, res) => {
-  const drugs = await Drug.find().sort({ name: 1 });
-  res.json(drugs);
+  try {
+    const drugs = await Drug.find().sort({ name: 1 }); // sort alphabetically
+    res.json(drugs);
+  } catch (err) {
+    console.error("FETCH DRUGS ERROR:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
-/* ADD or UPDATE drug */
+/* -------------------------------
+   POST /api/drugs
+   Add a new drug or increase stock if exists
+--------------------------------- */
 router.post("/", auth, async (req, res) => {
   try {
-    const { name, stock, price } = req.body;
+    const { name, price, stock } = req.body;
+    if (!name || !price || !stock)
+      return res.status(400).json({ message: "All fields are required" });
 
-    if (!name || !price)
-      return res.status(400).json({ message: "Name and price required" });
-
-    let drug = await Drug.findOne({ name });
-
-    // update stock if exists
-    if (drug) {
-      drug.stock += Number(stock || 0);
-      drug.price = price;
-      await drug.save();
-      return res.json(drug);
+    // Check if drug exists
+    const existingDrug = await Drug.findOne({ name: name.trim() });
+    if (existingDrug) {
+      // Increase stock and update price
+      existingDrug.stock += Number(stock);
+      existingDrug.price = Number(price);
+      await existingDrug.save();
+      return res.json({
+        message: "Existing drug stock updated",
+        drug: existingDrug,
+      });
     }
 
-    // create new drug
-    drug = await Drug.create({
-      name,
-      stock: Number(stock || 0),
-      price,
+    // Create new drug
+    const drug = await Drug.create({
+      name: name.trim(),
+      price: Number(price),
+      stock: Number(stock),
     });
 
-    res.status(201).json(drug);
+    res.status(201).json({ message: "Drug added successfully", drug });
   } catch (err) {
-    res.status(500).json({ message: "Failed to save drug" });
+    console.error("POST DRUG ERROR:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/* -------------------------------
+   PATCH /api/drugs
+   Update stock and price for an existing drug
+--------------------------------- */
+router.patch("/", auth, async (req, res) => {
+  try {
+    const { drugId, price, stock } = req.body;
+    if (!drugId || price === undefined || stock === undefined)
+      return res.status(400).json({ message: "All fields required" });
+
+    if (!mongoose.Types.ObjectId.isValid(drugId))
+      return res.status(400).json({ message: "Invalid drug ID" });
+
+    const drug = await Drug.findById(drugId);
+    if (!drug) return res.status(404).json({ message: "Drug not found" });
+
+    drug.price = Number(price);
+    drug.stock += Number(stock);
+    await drug.save();
+
+    res.json({ message: "Drug stock and price updated", drug });
+  } catch (err) {
+    console.error("PATCH DRUG ERROR:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/* -------------------------------
+   DELETE /api/drugs/:id
+   Delete a drug
+--------------------------------- */
+router.delete("/:id", auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id))
+      return res.status(400).json({ message: "Invalid drug ID" });
+
+    const drug = await Drug.findByIdAndDelete(id);
+    if (!drug) return res.status(404).json({ message: "Drug not found" });
+
+    res.json({ message: `Drug "${drug.name}" deleted successfully` });
+  } catch (err) {
+    console.error("DELETE DRUG ERROR:", err);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
