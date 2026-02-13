@@ -1,6 +1,6 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
-const drugSchema = mongoose.Schema(
+const drugSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
     stock: { type: Number, default: 0 },
@@ -9,4 +9,4 @@ const drugSchema = mongoose.Schema(
   { timestamps: true }
 );
 
-export default mongoose.model("Drug", drugSchema);
+module.exports = mongoose.model("Drug", drugSchema);

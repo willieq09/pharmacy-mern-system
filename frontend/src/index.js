@@ -1,30 +1,13 @@
-import React from 'react';
-import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { AuthProvider } from './auth/AuthProvider';
-import Navbar from './components/Navbar';
-import Dashboard from './pages/Dashboard';
-import Login from './pages/Login';
-import Drugs from './pages/Drugs';
-import Sales from './pages/Sales';
-import ProtectedRoute from './components/ProtectedRoute';
-import './index.css';
-import App from './app';
-function App(){
-  return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Navbar />
-        <Routes>
-          <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/drugs" element={<ProtectedRoute><Drugs /></ProtectedRoute>} />
-          <Route path="/sales" element={<ProtectedRoute><Sales /></ProtectedRoute>} />
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
-  );
-}
+import React from "react";
+import { createRoot } from "react-dom/client";
+import App from "./App";
+import "./index.css";
 
-const container = document.getElementById('root');
-if (container) createRoot(container).render(<App />);
+const container = document.getElementById("root");
+const root = createRoot(container);
+
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
