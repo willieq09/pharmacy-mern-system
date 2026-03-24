@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import API from "../api";
+import API from "../api"; // axios instance or fetch wrapper
 import { useAuth } from "../auth/useAuth";
 
 export default function Login() {
@@ -16,27 +16,26 @@ export default function Login() {
     setError("");
 
     try {
-      const res = await API.post("/auth/login", {
-        username,
-        password,
-      });
+      const res = await API.post("/auth/login", { username, password });
 
-      // ✅ SAVE TOKEN
+      // ✅ 1. Save JWT token for authenticated requests
       localStorage.setItem("token", res.data.token);
 
-      // ✅ SAVE USER (CRITICAL FIX)
+      // ✅ 2. Save user info (username & role) for role-based access
       localStorage.setItem("user", JSON.stringify(res.data.user));
 
-      // ✅ UPDATE CONTEXT
+      // ✅ 3. Update React Context
       setUser(res.data.user);
 
-      // ✅ REDIRECT
-      navigate("/");
+      // ✅ 4. Redirect user based on role (optional)
+      if (res.data.user.role === "admin") {
+        navigate("/admin-dashboard");
+      } else {
+        navigate("/sales-dashboard"); // pharmacist/staff route
+      }
     } catch (err) {
       console.error("Login error:", err);
-      setError(
-        err.response?.data?.message || "Login failed, please try again"
-      );
+      setError(err.response?.data?.message || "Login failed, please try again");
     }
   };
 

@@ -5,12 +5,14 @@ const mongoose = require("mongoose");
 const Sale = require("../models/Sale");
 const Drug = require("../models/Drug");
 const auth = require("../middleware/auth");
+const roles = require("../middleware/roles"); // <-- role middleware
 
 /* =========================================
    POST /api/sales
    Normal sale by drug ID
+   Allowed roles: admin, pharmacist, staff
 ========================================= */
-router.post("/", auth, async (req, res) => {
+router.post("/", auth, roles("admin", "pharmacist", "staff"), async (req, res) => {
   try {
     const { drug, quantity, totalPrice } = req.body;
 
@@ -38,7 +40,7 @@ router.post("/", auth, async (req, res) => {
       drug,
       quantity,
       totalPrice,
-      soldBy: req.user._id,
+      soldBy: req.user._id, // track which user made the sale
     });
 
     const populatedSale = await Sale.findById(sale._id)
@@ -55,8 +57,9 @@ router.post("/", auth, async (req, res) => {
 /* =========================================
    POST /api/sales/barcode
    Sell drug using barcode
+   Allowed roles: admin, pharmacist, staff
 ========================================= */
-router.post("/barcode", auth, async (req, res) => {
+router.post("/barcode", auth, roles("admin", "pharmacist", "staff"), async (req, res) => {
   try {
     const { barcode, quantity } = req.body;
 
@@ -67,7 +70,6 @@ router.post("/barcode", auth, async (req, res) => {
       return res.status(400).json({ message: "Invalid quantity" });
 
     const drug = await Drug.findOne({ barcode });
-
     if (!drug)
       return res.status(404).json({ message: "Drug not found" });
 
@@ -84,7 +86,7 @@ router.post("/barcode", auth, async (req, res) => {
       drug: drug._id,
       quantity,
       totalPrice,
-      soldBy: req.user._id,
+      soldBy: req.user._id, // track user
     });
 
     const populatedSale = await Sale.findById(sale._id)
@@ -100,13 +102,26 @@ router.post("/barcode", auth, async (req, res) => {
 
 /* =========================================
    GET /api/sales
+   Allowed roles: admin, manager
+   Pharmacists or staff only see their own sales (optional)
 ========================================= */
 router.get("/", auth, async (req, res) => {
   try {
-    const sales = await Sale.find()
-      .populate("drug", "name price barcode")
-      .populate("soldBy", "username")
-      .sort({ createdAt: -1 });
+    let sales;
+
+    // Admin and manager see all sales
+    if (["admin", "manager"].includes(req.user.role)) {
+      sales = await Sale.find()
+        .populate("drug", "name price barcode")
+        .populate("soldBy", "username")
+        .sort({ createdAt: -1 });
+    } else {
+      // Pharmacist/staff see only their own sales
+      sales = await Sale.find({ soldBy: req.user._id })
+        .populate("drug", "name price barcode")
+        .populate("soldBy", "username")
+        .sort({ createdAt: -1 });
+    }
 
     res.json(sales);
   } catch (err) {
